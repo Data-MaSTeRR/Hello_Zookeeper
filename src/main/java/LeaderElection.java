@@ -18,10 +18,9 @@ public class LeaderElection implements Watcher {
 
     /**
      * main 메서드는 프로그램의 시작점입니다.
-     * 여기서 ZooKeeper에 연결을 시도하고, 연결 대기 후 종료합니다.
+     * 여기서는 각 메서드 내부에서 예외를 처리하므로 main에는 throws가 없습니다.
      */
-    public static void main(String[] args) throws InterruptedException {
-        // LeaderElection 클래스의 인스턴스를 생성합니다.
+    public static void main(String[] args) {
         LeaderElection leaderElection = new LeaderElection();
 
         // ZooKeeper 서버와 연결을 시도합니다.
@@ -46,8 +45,10 @@ public class LeaderElection implements Watcher {
             // ZooKeeper 객체 생성 - 이 과정에서 ZooKeeper 서버에 연결 요청을 보냅니다.
             this.zooKeeper = new ZooKeeper(Zookeeper_Address, Zookeeper_SessionTimeout, this);
         } catch (IOException e) {
-            // 연결 중 IOException이 발생하면, RuntimeException으로 감싸서 던집니다.
-            throw new RuntimeException(e);
+            // 연결 중 IOException 발생 시 로그 출력 후 프로그램을 종료합니다.
+            System.err.println("Failed to connect to ZooKeeper: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
         }
     }
 
@@ -55,22 +56,36 @@ public class LeaderElection implements Watcher {
      * run 메서드는 연결 상태가 변경될 때까지 현재 스레드를 대기 상태로 만듭니다.
      * synchronized 블록을 사용하여 zooKeeper 객체에 대해 락을 획득하고 wait()를 호출합니다.
      */
-    public void run() throws InterruptedException {
+    public void run() {
         synchronized (zooKeeper) {  // zooKeeper 객체를 모니터(락)로 사용
-            // 다른 스레드에서 notify 또는 notifyAll()이 호출될 때까지 대기합니다.
-            zooKeeper.wait();
+            try {
+                // 다른 스레드에서 notify 또는 notifyAll()이 호출될 때까지 대기합니다.
+                zooKeeper.wait();
+            } catch (InterruptedException e) {
+                // 대기 중 인터럽트가 발생하면 인터럽트 상태 복원 후 로그 출력
+                Thread.currentThread().interrupt();
+                System.err.println("Thread was interrupted while waiting: " + e.getMessage());
+            }
         }
     }
 
     /**
      * close 메서드는 ZooKeeper와의 연결을 정상적으로 종료합니다.
      */
-    private void close() throws InterruptedException {
-        this.zooKeeper.close();
+    public void close() {
+        if (zooKeeper != null) {
+            try {
+                zooKeeper.close();
+            } catch (InterruptedException e) {
+                // 연결 종료 중 인터럽트 발생 시 인터럽트 상태 복원 후 로그 출력
+                Thread.currentThread().interrupt();
+                System.err.println("Interrupted while closing ZooKeeper connection: " + e.getMessage());
+            }
+        }
     }
 
     /**
-     * Watcher 인터페이스의 process 메서드를 구현합니다. (인터페이스에 있는 메서드는 상속 시 무조건 구현해야 함)
+     * Watcher 인터페이스의 process 메서드를 구현합니다.
      * 이 메서드는 ZooKeeper에서 이벤트가 발생할 때마다 호출되며, 이벤트 타입과 상태에 따라 적절한 처리를 합니다.
      *
      * @param watchedEvent 발생한 이벤트 정보를 담고 있는 객체
@@ -81,7 +96,7 @@ public class LeaderElection implements Watcher {
         switch (watchedEvent.getType()) {
             // 이벤트 타입이 None인 경우, 주로 연결 상태의 변화를 의미합니다.
             case None:
-                // 만약 이벤트 상태가 SyncConnected라면, ZooKeeper와의 연결이 성공적으로 이루어진 것입니다.
+                // 이벤트 상태가 SyncConnected이면, ZooKeeper와의 연결이 성공적으로 이루어진 것입니다.
                 if (watchedEvent.getState() == Event.KeeperState.SyncConnected) {
                     System.out.println("Successfully connected to ZooKeeper");
                 } else {
@@ -89,13 +104,12 @@ public class LeaderElection implements Watcher {
                     // synchronized 블록을 통해 대기 중인 스레드를 깨워 run() 메서드의 wait()를 해제합니다.
                     synchronized (zooKeeper) {
                         System.out.println("Disconnected from ZooKeeper event");
-                        // zooKeeper 객체에 대해 wait() 중인 모든 스레드를 깨웁니다.
                         zooKeeper.notifyAll();
                     }
                 }
-                break; // switch 문 종료
+                break;
 
-            // 추가로 처리해야 할 다른 이벤트 타입에 대해서는 여기에 case 문을 추가할 수 있습니다.
+            // 추가로 처리할 다른 이벤트 타입에 대해 필요한 로직을 여기에 추가할 수 있습니다.
             default:
                 break;
         }

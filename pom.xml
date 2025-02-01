@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>distributed.systems</groupId>
-    <artifactId>leader.election</artifactId>
+    <artifactId>leader.reelection</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <!-- Java 버전을 원하는 값으로 지정 (예: 23) -->
+        <!-- Java 버전을 원하는 값으로 지정 (예: 18) -->
         <maven.compiler.source>22</maven.compiler.source>
         <maven.compiler.target>22</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -25,23 +25,26 @@
                     <!-- properties에 지정된 값을 사용 -->
                     <source>${maven.compiler.source}</source>
                     <target>${maven.compiler.target}</target>
+                    <includes>
+                        <!-- 빌드를 원하는 java파일을 입력 -->
+                        <include>LeaderReElection.java</include>
+                    </includes>
                 </configuration>
             </plugin>
-
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <executions>
                     <execution>
                         <phase>package</phase>
                         <goals>
-                            <goal> single</goal>
+                            <goal>single</goal>
                         </goals>
                     </execution>
                 </executions>
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>LeaderElection</mainClass>
+                            <mainClass>LeaderReElection</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

@@ -99,27 +99,33 @@ public class LeaderReElection implements Watcher {
             Stat predecessorStat = null;
             String predecessorZnodeName = "";
 
+            // 자신보다 앞선 후보 노드가 나타날 때까지 반복합니다. -> null 이라는 것은 임시노드가 삭제된 상황!!!
             while (predecessorStat == null) {
-                // /election 네임스페이스 아래의 자식 znode 목록을 가져옵니다.
+                // /election 네임스페이스 아래의 모든 자식 znode 목록을 가져옵니다.
                 List<String> children = zooKeeper.getChildren(ELECTION_NAMESPACE, false);
-                // 가져온 znode 리스트를 오름차순으로 정렬합니다.
+                // 후보 목록을 오름차순으로 정렬합니다.
                 Collections.sort(children);
-                // 정렬된 목록의 첫 번째 요소가 가장 작은 순번의 znode, 즉 리더 후보입니다.
+                // 가장 작은 znode(리더 후보)를 확인합니다.
                 String smallestChild = children.get(0);
 
-                // 현재 노드가 리더 후보와 동일한지 확인합니다.
+                // 만약 현재 노드가 가장 작은 znode라면 자신이 리더임을 출력합니다.
                 if (smallestChild.equals(currentZnodeName)) {
                     System.out.println("I am the leader");
+                    return;
                 } else {
+                    // 현재 노드가 리더가 아닌 경우,
+                    // 자신보다 바로 앞에 있는 후보 노드(즉, 자신보다 한 단계 낮은 순위)를 찾습니다.
                     System.out.println("I am not the leader");
                     int predecessorIndex = Collections.binarySearch(children, currentZnodeName) - 1;
                     predecessorZnodeName = children.get(predecessorIndex);
+                    // 자신보다 앞선 후보 노드의 존재 여부를 확인하면서 Watcher를 등록합니다.
                     predecessorStat = zooKeeper.exists(ELECTION_NAMESPACE + "/" + predecessorZnodeName, this);
                 }
             }
 
-            System.out.println("I'm znode: " + currentZnodeName);
+            // 자신보다 앞선 후보를 감시 대상으로 설정하고, 해당 후보의 상태 변경을 기다립니다.
             System.out.println("Watching znode: " + predecessorZnodeName);
+            System.out.println("I'm znode: " + currentZnodeName);
         } catch (KeeperException | InterruptedException e) {
             Thread.currentThread().interrupt();
             System.err.println("Exception while electing leader: " + e.getMessage());
